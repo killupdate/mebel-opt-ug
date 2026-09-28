@@ -5,8 +5,8 @@ const clamp=v=>Math.max(0,Math.min(1,v));
 const smooth=(a,b,v)=>{const t=clamp((v-a)/(b-a));return t*t*(3-2*t);};
 // Each pose is anchored to a real content chapter. Scroll is never intercepted.
 const poses=[
- {x:.72,y:0,scale:1.25,yaw:-.12,tilt:0,solid:0,explode:0,open:0},
- {x:.27,y:.02,scale:1.18,yaw:.55,tilt:.035,solid:.7,explode:0,open:0},
+ {x:.5,y:.76,scale:.76,yaw:-.4,tilt:.02,solid:1,explode:0,open:0},
+ {x:.27,y:.02,scale:1.18,yaw:.55,tilt:.035,solid:0,explode:0,open:0},
  {x:.74,y:0,scale:1.27,yaw:-.45,tilt:.025,solid:1,explode:0,open:0},
  {x:.27,y:0,scale:1.12,yaw:.65,tilt:.025,solid:1,explode:0,open:0},
  {x:.74,y:0,scale:1.03,yaw:-.28,tilt:.035,solid:1,explode:.05,open:1},
@@ -34,6 +34,7 @@ function updateStory(){
   const r=chapter.getBoundingClientRect(), copy=chapter.querySelector('.chapter-copy');
   if(!chapter.classList.contains('final-chapter')&&!motionPreference.matches)copy.style.top=`${narrow?Math.max(100,Math.min(vh*.44,vh-98-copy.offsetHeight)):Math.max(100,Math.min(vh*.22,vh-65-copy.offsetHeight))}px`;
   else copy.style.removeProperty('top');
+  if(chapter.id==='intro'&&!narrow&&!motionPreference.matches)copy.style.top=`${Math.max(vh*.5,vh-copy.offsetHeight-42)}px`;
   const enter=1-smooth(vh*.3,vh*.92,r.top);
   // Keep tall interactive chapters readable until they leave the viewport.
   const exit=chapter.classList.contains('final-chapter')?1:smooth(vh*.15,vh*.72,r.bottom);
@@ -45,8 +46,8 @@ function updateStory(){
  }
  const labelIndex=t>.6?Math.min(index+1,chapters.length-1):index;
  $('#view-name').textContent=chapters[labelIndex].dataset.view;
- $('.blueprint-grid').style.opacity=1-state.solid*.96;
- $('.world-word').style.opacity=.6+state.solid*.4;
+ $('.blueprint-grid').style.opacity=(1-state.solid)*.38;
+ $('.world-word').style.opacity=0;
  $('#scene').style.opacity=index===poses.length-1?(narrow?.25:.24):1-smooth(.3,.95,index===poses.length-2?local:0)*.76;
  $('.story-progress span').style.transform=`scaleX(${clamp(sy/Math.max(1,document.documentElement.scrollHeight-vh))})`;
  $('#scene').dataset.chapter=String(index);
@@ -63,7 +64,7 @@ addEventListener('hashchange',schedule);
 document.addEventListener('toggle',schedule,true);
 updateStory();
 const fields=['product','quantity','city','deadline'];function brief(){return 'Здравствуйте! Прошу рассчитать партию мебели.\n'+['Изделие','Количество','Город поставки','Желаемый срок'].map((s,i)=>s+': '+($('#'+fields[i]).value.trim()||'уточним')).join('\n')+'\nРаботаем как ЮЛ/ИП. Минимальный заказ от 300 000 ₽.';}function email(){ $('#email-brief').href='mailto:optmebelug@mail.ru?subject='+encodeURIComponent('Расчёт партии мебели')+'&body='+encodeURIComponent(brief());}fields.forEach(id=>$('#'+id).addEventListener('input',email));email();document.querySelectorAll('[data-interest]').forEach(a=>a.addEventListener('click',()=>{$('#product').value=a.dataset.interest;email();}));$('#copy-brief').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(brief());$('#brief-status').textContent='Запрос скопирован. Вставьте его в Telegram.';}catch{$('#brief-status').textContent='Копирование недоступно. Используйте «Отправить по email».';}});
-async function init(){try{const T=await import('./assets/three.module.js');const host=$('#scene'),scene=new T.Scene(),camera=new T.OrthographicCamera(-4,4,2.3,-2.3,.1,100);const renderer=new T.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xffffff,0);host.appendChild(renderer.domElement);$('.fallback')?.remove();scene.add(new T.HemisphereLight(0xe9f7ff,0x617b8c,2.8));const light=new T.DirectionalLight(0xffffff,3.5);light.position.set(-3,6,5);scene.add(light);const root=new T.Group();scene.add(root);const pieces=[];const timber=0xb9b0a2,white=0xe8e6e2,metal=0x555c61;
+async function init(){try{const T=await import('./assets/three.module.js');const host=$('#scene'),scene=new T.Scene(),camera=new T.OrthographicCamera(-4,4,2.3,-2.3,.1,100);const renderer=new T.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0x000000,0);renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;host.appendChild(renderer.domElement);$('.fallback')?.remove();scene.add(new T.HemisphereLight(0xdce7ff,0x131116,1.25));const light=new T.DirectionalLight(0xfff1df,4.5);light.position.set(-3,5,4);scene.add(light);const rim=new T.DirectionalLight(0x9cbfff,3.2);rim.position.set(4,1,-2);scene.add(rim);const fill=new T.DirectionalLight(0xffffff,.8);fill.position.set(0,1,5);scene.add(fill);const root=new T.Group();scene.add(root);const pieces=[];const timber=0x968779,white=0xd8d6d1,metal=0x74787c;
 function part(size,pos,explode,color=white,geometry=null){const geo=geometry||new T.BoxGeometry(...size);const mat=new T.MeshStandardMaterial({color,roughness:color===metal?.32:.65,metalness:color===metal?.8:0,transparent:true});const mesh=new T.Mesh(geo,mat);const edges=new T.LineSegments(new T.EdgesGeometry(geo),new T.LineBasicMaterial({color:0x00b9ff,transparent:true}));const g=new T.Group();g.add(mesh,edges);g.position.set(...pos);root.add(g);pieces.push({g,mesh,edges,pos:new T.Vector3(...pos),ex:new T.Vector3(...explode)});return g;}
 // Reference wardrobe: 1200 W × 500 D × 2200 H, three equal doors.
 // Narrow left shelving bay with two internal drawers; double-width hanging bay right.
@@ -133,7 +134,7 @@ renderScene=()=>{
   if(p.door){const angle=p.door.sign*state.open*1.42;p.g.position.sub(p.door.pivot).applyAxisAngle(axis,angle).add(p.door.pivot);p.g.rotation.y+=angle;}
   p.g.position.addScaledVector(p.ex,state.explode);
   p.mesh.material.opacity=state.solid;p.mesh.material.depthWrite=state.solid>.98;p.mesh.visible=state.solid>.005;
-  p.edges.material.opacity=1-state.solid*.88;p.edges.material.color.set(state.solid>.6?0x57636b:0x00baff);
+  p.edges.material.opacity=1-state.solid*.96;p.edges.material.color.set(state.solid>.6?0x898582:0x29bfff);
  }
  renderer.render(scene,camera);
 };
