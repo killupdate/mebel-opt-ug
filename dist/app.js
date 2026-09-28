@@ -127,7 +127,7 @@ renderScene=()=>{
  const mobileCenter=(82+state.mobileTop)/2;
  const mobileScale=Math.max(.17,(state.mobileTop-96)*.88/h*4.6/2.2/1.25);
  root.position.set(mobile?Math.sin(state.yaw)*.08:(state.x-.5)*worldWidth,mobile?2.3-mobileCenter/h*4.6:state.y,0);
- root.scale.setScalar(state.scale*(mobile?mobileScale:1));
+ root.scale.setScalar(state.scale*(mobile?mobileScale*(1+.65*clamp(state.y/.76)):1));
  root.rotation.set(state.tilt,state.yaw,0);
  for(const p of pieces){
   p.g.position.copy(p.pos);p.g.rotation.copy(p.baseRotation);
