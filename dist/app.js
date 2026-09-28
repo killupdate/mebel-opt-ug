@@ -1,8 +1,69 @@
-const $=s=>document.querySelector(s);const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;const stages=[['01 / ПРОЕКТИРОВАНИЕ','Всё начинается с вашей идеи.','Согласуем размеры, материалы и конструкцию. Зафиксируем детали до запуска в производство.','01 — ЧЕРТЁЖ'],['02 / ПРОИЗВОДСТВО','Из проекта — в изделие.','Воплотим согласованную конструкцию. Проверим геометрию, обработку и комплектацию.','02 — 3D-МОДЕЛЬ'],['03 / КОМПЛЕКТАЦИЯ','Продумано до последнего винта.','Корпус, фасады, ящики и фурнитура. Подготовим комплект к упаковке и отгрузке.','03 — ДЕТАЛИ']];let progress=0,draw=()=>{};
-function update(p){progress=Math.max(0,Math.min(1,p));const n=progress<.25?0:progress<.65?1:2;['#step-number','#step-title','#step-text','#view-name'].forEach((s,i)=>$(s).textContent=stages[n][i]);document.querySelectorAll('[data-stage]').forEach((b,i)=>b.setAttribute('aria-pressed',i===n));$('#parts-labels').style.opacity=n===2?1:0;draw();}
-function onScroll(){if(reduced)return;const r=$('.journey').getBoundingClientRect();update(-r.top/Math.max(1,r.height-innerHeight));}addEventListener('scroll',onScroll,{passive:true});document.querySelectorAll('[data-stage]').forEach(b=>b.addEventListener('click',()=>{const p=[0,.46,1][Number(b.dataset.stage)];if(reduced){update(p);return;}const r=$('.journey').getBoundingClientRect();scrollTo({top:scrollY+r.top+p*(r.height-innerHeight),behavior:'smooth'});}));
+const $=s=>document.querySelector(s);
+const motionPreference=matchMedia('(prefers-reduced-motion: reduce)');
+const chapters=[...document.querySelectorAll('.chapter')];
+const clamp=v=>Math.max(0,Math.min(1,v));
+const smooth=(a,b,v)=>{const t=clamp((v-a)/(b-a));return t*t*(3-2*t);};
+// Each pose is anchored to a real content chapter. Scroll is never intercepted.
+const poses=[
+ {x:.72,y:0,scale:1.25,yaw:-.12,tilt:0,solid:0,explode:0,open:0},
+ {x:.27,y:.02,scale:1.18,yaw:.55,tilt:.035,solid:.7,explode:0,open:0},
+ {x:.74,y:0,scale:1.27,yaw:-.45,tilt:.025,solid:1,explode:0,open:0},
+ {x:.27,y:0,scale:1.12,yaw:.65,tilt:.025,solid:1,explode:0,open:0},
+ {x:.74,y:0,scale:1.03,yaw:-.28,tilt:.035,solid:1,explode:.05,open:1},
+ {x:.27,y:.04,scale:.89,yaw:.35,tilt:.08,solid:1,explode:1,open:1},
+ {x:.74,y:0,scale:.95,yaw:-.23,tilt:.04,solid:1,explode:.4,open:.8},
+ {x:.27,y:0,scale:1.12,yaw:.38,tilt:.025,solid:1,explode:0,open:0},
+ {x:.5,y:.05,scale:1.08,yaw:-.2,tilt:0,solid:1,explode:0,open:0}
+];
+let state={...poses[0]},renderScene=()=>{},scheduled=false;
+function updateStory(){
+ scheduled=false;
+ const vh=innerHeight, sy=scrollY, narrow=innerWidth<=700;
+ let index=0;
+ for(let i=0;i<chapters.length;i++)if(sy>=chapters[i].offsetTop)index=i;
+ const start=chapters[index].offsetTop;
+ const end=chapters[index+1]?.offsetTop ?? document.querySelector('footer').offsetTop;
+ const local=clamp((sy-start)/Math.max(1,end-start));
+ const next=Math.min(index+1,poses.length-1);
+ const t=smooth(.18,.9,local), a=poses[index], b=poses[next];
+ for(const key of Object.keys(a))state[key]=a[key]+(b[key]-a[key])*t;
+ if(motionPreference.matches)state={...poses[index]};
+ const mobileTop=i=>i===chapters.length-1?vh*.48:Math.max(100,Math.min(vh*.44,vh-98-chapters[i].querySelector('.chapter-copy').offsetHeight));
+ state.mobileTop=mobileTop(index)+(mobileTop(next)-mobileTop(index))*t;
+ for(const chapter of chapters){
+  const r=chapter.getBoundingClientRect(), copy=chapter.querySelector('.chapter-copy');
+  if(!chapter.classList.contains('final-chapter')&&!motionPreference.matches)copy.style.top=`${narrow?Math.max(100,Math.min(vh*.44,vh-98-copy.offsetHeight)):Math.max(100,Math.min(vh*.22,vh-65-copy.offsetHeight))}px`;
+  else copy.style.removeProperty('top');
+  const enter=1-smooth(vh*.3,vh*.92,r.top);
+  // Keep tall interactive chapters readable until they leave the viewport.
+  const exit=chapter.classList.contains('final-chapter')?1:smooth(vh*.15,vh*.72,r.bottom);
+  const alpha=motionPreference.matches?1:enter*exit;
+  copy.style.opacity=alpha;
+  copy.style.transform=motionPreference.matches?'none':`translateY(${(1-enter)*48-(1-exit)*30}px)`;
+  copy.style.pointerEvents=alpha>.06?'auto':'none';
+  copy.inert=alpha<.025;
+ }
+ const labelIndex=t>.6?Math.min(index+1,chapters.length-1):index;
+ $('#view-name').textContent=chapters[labelIndex].dataset.view;
+ $('.blueprint-grid').style.opacity=1-state.solid*.96;
+ $('.world-word').style.opacity=.6+state.solid*.4;
+ $('#scene').style.opacity=index===poses.length-1?(narrow?.25:.24):1-smooth(.3,.95,index===poses.length-2?local:0)*.76;
+ $('.story-progress span').style.transform=`scaleX(${clamp(sy/Math.max(1,document.documentElement.scrollHeight-vh))})`;
+ $('#scene').dataset.chapter=String(index);
+ $('#scene').dataset.pose=JSON.stringify(state);
+ renderScene();
+}
+function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(updateStory);}}
+addEventListener('scroll',schedule,{passive:true});
+addEventListener('resize',schedule,{passive:true});
+motionPreference.addEventListener('change',schedule);
+new ResizeObserver(schedule).observe(document.querySelector('main'));
+// An anchor remains usable even when its text chapter was faded out.
+addEventListener('hashchange',schedule);
+document.addEventListener('toggle',schedule,true);
+updateStory();
 const fields=['product','quantity','city','deadline'];function brief(){return 'Здравствуйте! Прошу рассчитать партию мебели.\n'+['Изделие','Количество','Город поставки','Желаемый срок'].map((s,i)=>s+': '+($('#'+fields[i]).value.trim()||'уточним')).join('\n')+'\nРаботаем как ЮЛ/ИП. Минимальный заказ от 300 000 ₽.';}function email(){ $('#email-brief').href='mailto:optmebelug@mail.ru?subject='+encodeURIComponent('Расчёт партии мебели')+'&body='+encodeURIComponent(brief());}fields.forEach(id=>$('#'+id).addEventListener('input',email));email();document.querySelectorAll('[data-interest]').forEach(a=>a.addEventListener('click',()=>{$('#product').value=a.dataset.interest;email();}));$('#copy-brief').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(brief());$('#brief-status').textContent='Запрос скопирован. Вставьте его в Telegram.';}catch{$('#brief-status').textContent='Копирование недоступно. Используйте «Отправить по email».';}});
-async function init(){try{const T=await import('./assets/three.module.js');const host=$('#scene'),scene=new T.Scene(),camera=new T.PerspectiveCamera(32,1,.1,100);const renderer=new T.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xffffff,0);host.appendChild(renderer.domElement);$('.fallback').remove();scene.add(new T.HemisphereLight(0xe9f7ff,0x617b8c,2.8));const light=new T.DirectionalLight(0xffffff,3.5);light.position.set(-3,6,5);scene.add(light);const root=new T.Group();scene.add(root);const pieces=[];const timber=0xb9b0a2,white=0xe8e6e2,metal=0x555c61;
+async function init(){try{const T=await import('./assets/three.module.js');const host=$('#scene'),scene=new T.Scene(),camera=new T.OrthographicCamera(-4,4,2.3,-2.3,.1,100);const renderer=new T.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xffffff,0);host.appendChild(renderer.domElement);$('.fallback')?.remove();scene.add(new T.HemisphereLight(0xe9f7ff,0x617b8c,2.8));const light=new T.DirectionalLight(0xffffff,3.5);light.position.set(-3,6,5);scene.add(light);const root=new T.Group();scene.add(root);const pieces=[];const timber=0xb9b0a2,white=0xe8e6e2,metal=0x555c61;
 function part(size,pos,explode,color=white,geometry=null){const geo=geometry||new T.BoxGeometry(...size);const mat=new T.MeshStandardMaterial({color,roughness:color===metal?.32:.65,metalness:color===metal?.8:0,transparent:true});const mesh=new T.Mesh(geo,mat);const edges=new T.LineSegments(new T.EdgesGeometry(geo),new T.LineBasicMaterial({color:0x00b9ff,transparent:true}));const g=new T.Group();g.add(mesh,edges);g.position.set(...pos);root.add(g);pieces.push({g,mesh,edges,pos:new T.Vector3(...pos),ex:new T.Vector3(...explode)});return g;}
 // Reference wardrobe: 1200 W × 500 D × 2200 H, three equal doors.
 // Narrow left shelving bay with two internal drawers; double-width hanging bay right.
@@ -20,11 +81,13 @@ for(const y of [.72,-.74]) part([.779,board,.46],[right,y,0],[.12,y*.12,.13],tim
 part([.73,.024,.024],[right,.57,0],[.12,.1,.26],metal,new T.CylinderGeometry(.012,.012,.73,20)).rotation.z=Math.PI/2;
 // Three full-height white fronts with black vertical handles.
 for(const [i,x] of [-.4,0,.4].entries()){
- const ex=[(i-1)*.58,0,.94+i*.08];
+ const doorStart=pieces.length;
+ const ex=[(i-1)*.36,0,.25+i*.04];
  part([.396,2.158,.018],[x,0,.259],ex,white);
  const hx=x+(i===2?-.15:.15);
  part([.012,.43,.022],[hx,-.12,.281],ex,0x262a2b);
  for(const hy of [-.31,.07])part([.012,.012,.025],[hx,hy,.27],ex,0x262a2b);
+ for(const p of pieces.slice(doorStart))p.door={pivot:new T.Vector3(x+(i===2?.198:-.198),0,.259),sign:i===2?1:-1};
 }
 // Two drawers hidden behind the left door: fronts, bottoms, sides and backs.
 for(const [i,y] of [-.635,-.91].entries()){
@@ -51,5 +114,29 @@ for(const x of [-.602,.602])for(const y of [-1.05,1.05]){
  part([.007,.065,.007],[x,y,0],ex,metal,new T.CylinderGeometry(.0035,.0035,.065,12)).rotation.z=Math.PI/2;
  part([.012,.012,.004],[x,y,.005],ex,metal,new T.CylinderGeometry(.006,.006,.004,16)).rotation.z=Math.PI/2;
 }
-const smooth=(a,b,v)=>{const t=T.MathUtils.clamp((v-a)/(b-a),0,1);return t*t*(3-2*t);};draw=()=>{const solid=smooth(.06,.38,progress),explode=smooth(.55,.98,progress);root.rotation.y=-.08+solid*.54;root.rotation.x=solid*.055;for(const p of pieces){p.g.position.copy(p.pos).addScaledVector(p.ex,explode);p.mesh.material.opacity=solid;p.mesh.visible=solid>.01;p.edges.material.opacity=1-solid*.8;p.edges.material.color.set(solid>.6?0x35566b:0x00baff);}const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.position.set(0,.15,Math.max(5.8,4.2/camera.aspect)+explode*1.25);camera.lookAt(0,0,0);camera.updateProjectionMatrix();renderer.render(scene,camera);};new ResizeObserver(draw).observe(host);onScroll();draw();}catch(e){console.warn('3D preview unavailable',e);$('.fallback').textContent='Проектирование → Производство → Комплектация';}}
+
+const axis=new T.Vector3(0,1,0);
+for(const p of pieces)p.baseRotation=p.g.rotation.clone();
+camera.position.set(0,0,10);camera.lookAt(0,0,0);
+let currentW=0,currentH=0;
+renderScene=()=>{
+ const w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;
+ if(w!==currentW||h!==currentH){currentW=w;currentH=h;renderer.setSize(w,h,false);const aspect=w/h;camera.left=-2.3*aspect;camera.right=2.3*aspect;camera.top=2.3;camera.bottom=-2.3;camera.updateProjectionMatrix();}
+ const mobile=w<=700, worldWidth=4.6*w/h;
+ const mobileCenter=(82+state.mobileTop)/2;
+ const mobileScale=Math.max(.17,(state.mobileTop-96)*.88/h*4.6/2.2/1.25);
+ root.position.set(mobile?Math.sin(state.yaw)*.08:(state.x-.5)*worldWidth,mobile?2.3-mobileCenter/h*4.6:state.y,0);
+ root.scale.setScalar(state.scale*(mobile?mobileScale:1));
+ root.rotation.set(state.tilt,state.yaw,0);
+ for(const p of pieces){
+  p.g.position.copy(p.pos);p.g.rotation.copy(p.baseRotation);
+  if(p.door){const angle=p.door.sign*state.open*1.42;p.g.position.sub(p.door.pivot).applyAxisAngle(axis,angle).add(p.door.pivot);p.g.rotation.y+=angle;}
+  p.g.position.addScaledVector(p.ex,state.explode);
+  p.mesh.material.opacity=state.solid;p.mesh.material.depthWrite=state.solid>.98;p.mesh.visible=state.solid>.005;
+  p.edges.material.opacity=1-state.solid*.88;p.edges.material.color.set(state.solid>.6?0x57636b:0x00baff);
+ }
+ renderer.render(scene,camera);
+};
+new ResizeObserver(schedule).observe(host);updateStory();
+}catch(e){console.warn('3D preview unavailable',e);const fallback=$('.fallback');if(fallback)fallback.textContent='Проектирование → Производство → Комплектация';}}
 init();
